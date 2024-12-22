@@ -1,13 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import type { NextPage } from "next";
-import { formatUnits, hexToString, isAddress, toHex, zeroAddress } from "viem";
-import { useAccount } from "wagmi";
+import { concat, hexToString, isAddress, keccak256, pad, toHex } from "viem";
 import { usePublicClient } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { Address } from "~~/components/scaffold-eth";
+import { ArrowPathIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 import scaffoldConfig from "~~/scaffold.config";
 import { useGlobalState } from "~~/services/store/store";
@@ -20,10 +17,12 @@ interface StorageValueFormats {
 }
 
 const Home: NextPage = () => {
-  const { address: connectedAddress } = useAccount();
   const [contractAddress, setContractAddress] = useState("");
   const [slot, setSlot] = useState("");
+  const [isMapping, setIsMapping] = useState(false);
+  const [mappingKey, setMappingKey] = useState("");
   const [storageValue, setStorageValue] = useState<StorageValueFormats | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { targetNetwork } = useTargetNetwork();
   const setTargetNetwork = useGlobalState(({ setTargetNetwork }) => setTargetNetwork);
   const publicClient = usePublicClient({ chainId: targetNetwork.id });
@@ -53,13 +52,32 @@ const Home: NextPage = () => {
 
   const fetchStorageSlot = async () => {
     try {
+      setIsLoading(true);
       if (!contractAddress || !slot || !publicClient || !isAddress(contractAddress)) return;
+      if (isMapping && !mappingKey) return;
 
-      const slotHex = toHex(+slot);
+      let finalSlot: `0x${string}`;
+      if (isMapping) {
+        const mappingSlot = pad(toHex(BigInt(slot)), { size: 32 });
+        let paddedKey: `0x${string}`;
+        if (isAddress(mappingKey)) {
+          paddedKey = pad(mappingKey as `0x${string}`, { size: 32 });
+        } else {
+          try {
+            const keyBigInt = BigInt(mappingKey);
+            paddedKey = pad(toHex(keyBigInt), { size: 32 });
+          } catch {
+            paddedKey = pad(mappingKey as `0x${string}`, { size: 32 });
+          }
+        }
+        finalSlot = keccak256(concat([paddedKey, mappingSlot]));
+      } else {
+        finalSlot = toHex(BigInt(slot), { size: 32 });
+      }
 
       const value = await publicClient.getStorageAt({
         address: contractAddress as `0x${string}`,
-        slot: slotHex,
+        slot: finalSlot,
       });
 
       if (!value) {
@@ -71,47 +89,54 @@ const Home: NextPage = () => {
     } catch (error) {
       console.error("Error fetching storage slot:", error);
       setStorageValue(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <>
-      <div className="flex items-center flex-col flex-grow pt-10">
-        <div className="px-5">
-          <h1 className="text-center">
-            <span className="block text-2xl mb-2">Welcome to</span>
-            <span className="block text-4xl font-bold">Storage Slot Explorer</span>
-          </h1>
-          <div className="flex justify-center items-center mt-4 gap-2">
-            <span className="font-medium">Network:</span>
-            <select
-              className="select select-bordered w-fit"
-              value={targetNetwork.id}
-              onChange={e => {
-                const newNetwork = scaffoldConfig.targetNetworks.find(n => n.id === Number(e.target.value));
-                if (newNetwork) setTargetNetwork(newNetwork);
-              }}
-            >
-              {scaffoldConfig.targetNetworks.map(network => (
-                <option key={network.id} value={network.id}>
-                  {network.name}
-                </option>
-              ))}
-            </select>
+    <div className="min-h-screen bg-gradient-to-b from-base-200 to-base-300">
+      <div className="flex items-center flex-col pt-10 px-4 md:px-8 lg:px-12">
+        <div className="w-full max-w-3xl">
+          {/* Header Section */}
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold mb-4 text-base-content">Storagoor v2</h1>
+            <p className="text-base-content/70">Explore Ethereum Storage Slots with Ease</p>
           </div>
-        </div>
 
-        <div className="flex-grow w-full mt-16 px-8">
-          <div className="bg-base-100 border border-base-200 rounded-lg shadow-md max-w-2xl mx-auto">
-            <div className="flex flex-col gap-4 p-6">
+          {/* Main Card */}
+          <div className="bg-base-100 rounded-2xl shadow-xl border border-base-300">
+            {/* Network Selector */}
+            <div className="p-6 border-b border-base-300">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <span className="font-semibold text-lg">Network</span>
+                <select
+                  className="select select-bordered w-full sm:w-auto min-w-[200px]"
+                  value={targetNetwork.id}
+                  onChange={e => {
+                    const newNetwork = scaffoldConfig.targetNetworks.find(n => n.id === Number(e.target.value));
+                    if (newNetwork) setTargetNetwork(newNetwork);
+                  }}
+                >
+                  {scaffoldConfig.targetNetworks.map(network => (
+                    <option key={network.id} value={network.id}>
+                      {network.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Input Form */}
+            <div className="p-6 space-y-6">
               <div>
                 <label className="label">
-                  <span className="label-text">Contract Address</span>
+                  <span className="label-text font-semibold">Contract Address</span>
                 </label>
                 <input
                   type="text"
                   placeholder="0x..."
-                  className="input input-bordered w-full"
+                  className="input input-bordered w-full font-mono"
                   value={contractAddress}
                   onChange={e => setContractAddress(e.target.value)}
                 />
@@ -119,52 +144,111 @@ const Home: NextPage = () => {
 
               <div>
                 <label className="label">
-                  <span className="label-text">Storage Slot</span>
+                  <span className="label-text font-semibold">Storage Slot</span>
                 </label>
                 <input
                   type="text"
                   placeholder="0x0"
-                  className="input input-bordered w-full"
+                  className="input input-bordered w-full font-mono"
                   value={slot}
                   onChange={e => setSlot(e.target.value)}
                 />
               </div>
 
-              <button className="btn btn-primary" onClick={fetchStorageSlot} disabled={!isAddress(contractAddress)}>
-                Read Storage Slot
+              <div className="flex items-center justify-between p-2 rounded-lg bg-base-200">
+                <span className="font-semibold px-2">Mapping Mode</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={isMapping}
+                  onChange={e => setIsMapping(e.target.checked)}
+                />
+              </div>
+
+              {isMapping && (
+                <div className="animate-fadeIn">
+                  <label className="label">
+                    <span className="label-text font-semibold">Mapping Key</span>
+                    <span className="label-text-alt">address, number, or string</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Key value..."
+                    className="input input-bordered w-full font-mono"
+                    value={mappingKey}
+                    onChange={e => setMappingKey(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary w-full"
+                onClick={fetchStorageSlot}
+                disabled={!isAddress(contractAddress) || (isMapping && !mappingKey) || isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <span className="loading loading-spinner"></span>
+                    Reading Storage...
+                  </>
+                ) : (
+                  <>
+                    <RocketLaunchIcon className="h-5 w-5" />
+                    Read Storage Slot
+                  </>
+                )}
               </button>
+            </div>
 
-              {storageValue && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold">Storage Value Interpretations:</h3>
-                  <div className="grid gap-3 mt-2">
-                    <div className="bg-base-200 rounded-lg p-4">
-                      <span className="font-semibold">Hexadecimal:</span>
-                      <pre className="overflow-x-auto mt-1 text-sm">{storageValue.hex}</pre>
+            {/* Results Section */}
+            {storageValue && (
+              <div className="border-t border-base-300">
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">Storage Value Interpretations</h3>
+                  <div className="grid gap-4">
+                    <div className="card bg-base-200">
+                      <div className="card-body p-4">
+                        <h4 className="card-title text-sm mb-2">Hexadecimal</h4>
+                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
+                          {storageValue.hex}
+                        </code>
+                      </div>
                     </div>
 
-                    <div className="bg-base-200 rounded-lg p-4">
-                      <span className="font-semibold">Decimal:</span>
-                      <pre className="overflow-x-auto mt-1 text-sm">{storageValue.decimal}</pre>
+                    <div className="card bg-base-200">
+                      <div className="card-body p-4">
+                        <h4 className="card-title text-sm mb-2">Decimal</h4>
+                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
+                          {storageValue.decimal}
+                        </code>
+                      </div>
                     </div>
 
-                    <div className="bg-base-200 rounded-lg p-4">
-                      <span className="font-semibold">String:</span>
-                      <pre className="overflow-x-auto mt-1 text-sm">{storageValue.string}</pre>
+                    <div className="card bg-base-200">
+                      <div className="card-body p-4">
+                        <h4 className="card-title text-sm mb-2">String</h4>
+                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
+                          {storageValue.string}
+                        </code>
+                      </div>
                     </div>
 
-                    <div className="bg-base-200 rounded-lg p-4">
-                      <span className="font-semibold">Address:</span>
-                      <pre className="overflow-x-auto mt-1 text-sm">{storageValue.address}</pre>
+                    <div className="card bg-base-200">
+                      <div className="card-body p-4">
+                        <h4 className="card-title text-sm mb-2">Address</h4>
+                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
+                          {storageValue.address}
+                        </code>
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
