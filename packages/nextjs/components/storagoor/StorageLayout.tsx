@@ -43,7 +43,7 @@ export const StorageLayout = ({ contractAddress, targetNetwork }: StorageLayoutP
   useEffect(() => {
     const fetchStorage = async () => {
       if (!contractAddress) return;
-      
+
       setIsLoading(true);
       try {
         const publicClient = createPublicClient({
@@ -54,7 +54,8 @@ export const StorageLayout = ({ contractAddress, targetNetwork }: StorageLayoutP
         const storageData = [];
         let idx = 0;
 
-        while (idx < 20) { // Limit to first 20 slots for performance
+        while (idx < 20) {
+          // Limit to first 20 slots for performance
           const storageAtPosition = await publicClient.getStorageAt({
             address: contractAddress as `0x${string}`,
             slot: `0x${idx.toString(16)}`,
@@ -95,7 +96,7 @@ export const StorageLayout = ({ contractAddress, targetNetwork }: StorageLayoutP
         <div className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
           {storage.map((slot, i) => (
             <div key={i} className="collapse collapse-arrow bg-base-200">
-              <input type="checkbox" /> 
+              <input type="checkbox" />
               <div className="collapse-title text-sm font-medium">
                 Storage Slot {i}
                 <div className="text-xs opacity-60 font-mono truncate">{slot.value}</div>
@@ -136,4 +137,4 @@ export const StorageLayout = ({ contractAddress, targetNetwork }: StorageLayoutP
       )}
     </div>
   );
-}; 
+};

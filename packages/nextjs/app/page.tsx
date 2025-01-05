@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { NextPage } from "next";
+import { Footer } from "~~/components/Footer";
 import { Interpretations, NetworkSelector } from "~~/components/storagoor";
 import { StorageForm } from "~~/components/storagoor/StorageForm";
 import { StorageLayout } from "~~/components/storagoor/StorageLayout";
-import { Footer } from "~~/components/Footer";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { useStorageSlot } from "~~/hooks/storagoor/useStorageSlot";
 
