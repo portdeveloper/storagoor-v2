@@ -8,7 +8,7 @@ export type ScaffoldConfig = {
   onlyLocalBurnerWallet: boolean;
 };
 
-export const DEFAULT_ALCHEMY_API_KEY = "oKxs-03sij-U_N0iOlrSsZFr29-IqbuF";
+export const DEFAULT_ALCHEMY_API_KEY = "h3KXY5AhC0kqn5_KWk2foLlsVsU6-Hh8";
 
 const scaffoldConfig = {
   // The networks on which your DApp is live

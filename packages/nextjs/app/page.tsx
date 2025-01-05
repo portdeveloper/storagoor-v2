@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import type { NextPage } from "next";
-import { concat, hexToString, isAddress, keccak256, pad, toHex } from "viem";
-import { usePublicClient } from "wagmi";
+import { concat, createPublicClient, hexToString, http, isAddress, keccak256, pad, toHex } from "viem";
 import { RocketLaunchIcon } from "@heroicons/react/24/outline";
+import { Interpretations, NetworkSelector } from "~~/components/storagoor";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
-import scaffoldConfig from "~~/scaffold.config";
-import { useGlobalState } from "~~/services/store/store";
 
 interface StorageValueFormats {
   hex: string;
@@ -24,8 +22,6 @@ const Home: NextPage = () => {
   const [storageValue, setStorageValue] = useState<StorageValueFormats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { targetNetwork } = useTargetNetwork();
-  const setTargetNetwork = useGlobalState(({ setTargetNetwork }) => setTargetNetwork);
-  const publicClient = usePublicClient({ chainId: targetNetwork.id });
 
   const formatStorageValue = (value: `0x${string}`): StorageValueFormats => {
     // Convert to BigInt for decimal representation
@@ -53,8 +49,13 @@ const Home: NextPage = () => {
   const fetchStorageSlot = async () => {
     try {
       setIsLoading(true);
-      if (!contractAddress || !slot || !publicClient || !isAddress(contractAddress)) return;
+      if (!contractAddress || !slot || !isAddress(contractAddress)) return;
       if (isMapping && !mappingKey) return;
+
+      const publicClient = createPublicClient({
+        chain: targetNetwork,
+        transport: http(targetNetwork.rpcUrls.default.http[0]),
+      });
 
       let finalSlot: `0x${string}`;
       if (isMapping) {
@@ -101,32 +102,13 @@ const Home: NextPage = () => {
           {/* Header Section */}
           <div className="text-center mb-12">
             <h1 className="text-5xl font-bold mb-4 text-base-content">Storagoor v2</h1>
-            <p className="text-base-content/70">Explore Ethereum Storage Slots with Ease</p>
+            <p className="text-base-content/70">Explore EVM Storage Slots with Ease</p>
           </div>
 
           {/* Main Card */}
           <div className="bg-base-100 rounded-2xl shadow-xl border border-base-300">
             {/* Network Selector */}
-            <div className="p-6 border-b border-base-300">
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <span className="font-semibold text-lg">Network</span>
-                <select
-                  className="select select-bordered w-full sm:w-auto min-w-[200px]"
-                  value={targetNetwork.id}
-                  onChange={e => {
-                    const newNetwork = scaffoldConfig.targetNetworks.find(n => n.id === Number(e.target.value));
-                    if (newNetwork) setTargetNetwork(newNetwork);
-                  }}
-                >
-                  {scaffoldConfig.targetNetworks.map(network => (
-                    <option key={network.id} value={network.id}>
-                      {network.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
+            <NetworkSelector />
             {/* Input Form */}
             <div className="p-6 space-y-6">
               <div>
@@ -201,50 +183,7 @@ const Home: NextPage = () => {
             </div>
 
             {/* Results Section */}
-            {storageValue && (
-              <div className="border-t border-base-300">
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Storage Value Interpretations</h3>
-                  <div className="grid gap-4">
-                    <div className="card bg-base-200">
-                      <div className="card-body p-4">
-                        <h4 className="card-title text-sm mb-2">Hexadecimal</h4>
-                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
-                          {storageValue.hex}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div className="card bg-base-200">
-                      <div className="card-body p-4">
-                        <h4 className="card-title text-sm mb-2">Decimal</h4>
-                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
-                          {storageValue.decimal}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div className="card bg-base-200">
-                      <div className="card-body p-4">
-                        <h4 className="card-title text-sm mb-2">String</h4>
-                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
-                          {storageValue.string}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div className="card bg-base-200">
-                      <div className="card-body p-4">
-                        <h4 className="card-title text-sm mb-2">Address</h4>
-                        <code className="block p-2 bg-base-300 rounded-lg overflow-x-auto font-mono text-sm">
-                          {storageValue.address}
-                        </code>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {storageValue && <Interpretations storageValue={storageValue} />}
           </div>
         </div>
       </div>
