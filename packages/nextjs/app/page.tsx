@@ -18,7 +18,9 @@ const Home: NextPage = () => {
   const [contractAddress, setContractAddress] = useState("");
   const [slot, setSlot] = useState("");
   const [isMapping, setIsMapping] = useState(false);
+  const [isDoubleMapping, setIsDoubleMapping] = useState(false);
   const [mappingKey, setMappingKey] = useState("");
+  const [secondMappingKey, setSecondMappingKey] = useState("");
   const [storageValue, setStorageValue] = useState<StorageValueFormats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { targetNetwork } = useTargetNetwork();
@@ -61,6 +63,9 @@ const Home: NextPage = () => {
       if (isMapping) {
         const mappingSlot = pad(toHex(BigInt(slot)), { size: 32 });
         let paddedKey: `0x${string}`;
+        let paddedSecondKey: `0x${string}`;
+
+        // Handle first key
         if (isAddress(mappingKey)) {
           paddedKey = pad(mappingKey as `0x${string}`, { size: 32 });
         } else {
@@ -71,7 +76,26 @@ const Home: NextPage = () => {
             paddedKey = pad(mappingKey as `0x${string}`, { size: 32 });
           }
         }
-        finalSlot = keccak256(concat([paddedKey, mappingSlot]));
+
+        if (isDoubleMapping && secondMappingKey) {
+          // Handle second key
+          if (isAddress(secondMappingKey)) {
+            paddedSecondKey = pad(secondMappingKey as `0x${string}`, { size: 32 });
+          } else {
+            try {
+              const keyBigInt = BigInt(secondMappingKey);
+              paddedSecondKey = pad(toHex(keyBigInt), { size: 32 });
+            } catch {
+              paddedSecondKey = pad(secondMappingKey as `0x${string}`, { size: 32 });
+            }
+          }
+          // For double mapping: keccak256(key2 + keccak256(key1 + slot))
+          const firstHash = keccak256(concat([paddedKey, mappingSlot]));
+          finalSlot = keccak256(concat([paddedSecondKey, firstHash]));
+        } else {
+          // Single mapping: keccak256(key + slot)
+          finalSlot = keccak256(concat([paddedKey, mappingSlot]));
+        }
       } else {
         finalSlot = toHex(BigInt(slot), { size: 32 });
       }
@@ -143,30 +167,68 @@ const Home: NextPage = () => {
                   type="checkbox"
                   className="toggle toggle-primary"
                   checked={isMapping}
-                  onChange={e => setIsMapping(e.target.checked)}
+                  onChange={e => {
+                    setIsMapping(e.target.checked);
+                    if (!e.target.checked) {
+                      setIsDoubleMapping(false);
+                    }
+                  }}
                 />
               </div>
 
               {isMapping && (
-                <div className="animate-fadeIn">
-                  <label className="label">
-                    <span className="label-text font-semibold">Mapping Key</span>
-                    <span className="label-text-alt">address, number, or string</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Key value..."
-                    className="input input-bordered w-full font-mono"
-                    value={mappingKey}
-                    onChange={e => setMappingKey(e.target.value)}
-                  />
-                </div>
+                <>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-base-200">
+                    <span className="font-semibold px-2">Double Mapping</span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary"
+                      checked={isDoubleMapping}
+                      onChange={e => setIsDoubleMapping(e.target.checked)}
+                    />
+                  </div>
+
+                  <div className="animate-fadeIn">
+                    <label className="label">
+                      <span className="label-text font-semibold">First Mapping Key</span>
+                      <span className="label-text-alt">address, number, or string</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Key value..."
+                      className="input input-bordered w-full font-mono"
+                      value={mappingKey}
+                      onChange={e => setMappingKey(e.target.value)}
+                    />
+                  </div>
+
+                  {isDoubleMapping && (
+                    <div className="animate-fadeIn">
+                      <label className="label">
+                        <span className="label-text font-semibold">Second Mapping Key</span>
+                        <span className="label-text-alt">address, number, or string</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Second key value..."
+                        className="input input-bordered w-full font-mono"
+                        value={secondMappingKey}
+                        onChange={e => setSecondMappingKey(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               <button
                 className="btn btn-primary w-full"
                 onClick={fetchStorageSlot}
-                disabled={!isAddress(contractAddress) || (isMapping && !mappingKey) || isLoading}
+                disabled={
+                  !isAddress(contractAddress) ||
+                  (isMapping && !mappingKey) ||
+                  (isDoubleMapping && !secondMappingKey) ||
+                  isLoading
+                }
               >
                 {isLoading ? (
                   <>
